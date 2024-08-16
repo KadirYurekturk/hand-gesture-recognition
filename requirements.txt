@@ -1,1 +1,3 @@
-opencv-python==4.8.0.74\nmediapipe==0.10.1\nPyQt5==5.15.9\nnumpy==1.25.0
+opencv-python
+mediapipe
+numpy
