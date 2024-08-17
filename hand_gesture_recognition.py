@@ -5,25 +5,25 @@ import numpy as np
 # Mediapipe model initialization
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
+mp_face_mesh = mp.solutions.face_mesh
 
 # Initialize a blank canvas
 canvas = np.ones((720, 1280, 3), dtype="uint8") * 255  # White background
 
-# Function to calculate the direction of hand movement
-def calculate_direction(coords1, coords2):
-    delta_x = coords2[0] - coords1[0]
-    if delta_x > 0.02:
-        return "right"
-    elif delta_x < -0.02:
-        return "left"
-    else:
-        return "none"
+# Function to draw face landmarks on the canvas
+def draw_face_landmarks(face_landmarks, image_width, image_height, canvas):
+    for landmark in face_landmarks.landmark:
+        x = int(landmark.x * image_width)
+        y = int(landmark.y * image_height)
+        cv2.circle(canvas, (x, y), 1, (0, 0, 0), -1)
 
 # Capturing video from webcam
 cap = cv2.VideoCapture(0)
 
-# Using Mediapipe Hands
-with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+with mp_face_mesh.FaceMesh(max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5) as face_mesh, \
+     mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+    
+    face_drawn = False  # To track if the face has been drawn
     previous_position = None
     drawing = False  # To check if drawing mode is active
 
@@ -37,7 +37,15 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image.flags.writeable = False
 
-        # Make detection using hands
+        # Make face detection and drawing if not done yet
+        if not face_drawn:
+            face_results = face_mesh.process(image)
+            if face_results.multi_face_landmarks:
+                for face_landmarks in face_results.multi_face_landmarks:
+                    draw_face_landmarks(face_landmarks, image.shape[1], image.shape[0], canvas)
+                face_drawn = True  # Face is drawn, do not draw again
+
+        # Make hand detection and drawing
         results = hands.process(image)
 
         # Re-coloring back to normal
