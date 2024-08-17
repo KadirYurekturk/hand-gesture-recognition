@@ -30,6 +30,9 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
     while cap.isOpened():
         ret, frame = cap.read()
 
+        # Flip the frame horizontally to create a mirror effect
+        frame = cv2.flip(frame, 1)
+
         # Recoloring our current image
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image.flags.writeable = False
