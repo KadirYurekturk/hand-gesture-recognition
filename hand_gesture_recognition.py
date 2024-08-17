@@ -6,12 +6,15 @@ import numpy as np
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
+# Initialize a blank canvas
+canvas = np.ones((720, 1280, 3), dtype="uint8") * 255  # White background
+
 # Function to calculate the direction of hand movement
 def calculate_direction(coords1, coords2):
     delta_x = coords2[0] - coords1[0]
-    if delta_x > 0.02:  # Move to the right (threshold lowered for sensitivity)
+    if delta_x > 0.02:
         return "right"
-    elif delta_x < -0.02:  # Move to the left (threshold lowered for sensitivity)
+    elif delta_x < -0.02:
         return "left"
     else:
         return "none"
@@ -22,10 +25,7 @@ cap = cv2.VideoCapture(0)
 # Using Mediapipe Hands
 with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
     previous_position = None
-    direction = None
-    wave_count = 0
-    frame_counter = 0
-    wave_threshold = 5  # Lowered the threshold for faster wave detection
+    drawing = False  # To check if drawing mode is active
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -46,42 +46,31 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
                 
-                wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-                current_position = (wrist.x, wrist.y)
+                # Get the index finger tip position
+                index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+                x = int(index_finger_tip.x * 1280)  # Scale to canvas size
+                y = int(index_finger_tip.y * 720)
 
                 if previous_position:
-                    current_direction = calculate_direction(previous_position, current_position)
-                    
-                    if direction is None:
-                        direction = current_direction
-                    elif direction == "right" and current_direction == "left":
-                        wave_count += 1
-                        direction = None
-                        frame_counter = 0
-                    elif direction == "left" and current_direction == "right":
-                        wave_count += 1
-                        direction = None
-                        frame_counter = 0
-                    else:
-                        frame_counter += 1
+                    if drawing:  # If drawing mode is active, draw on the canvas
+                        cv2.line(canvas, previous_position, (x, y), (0, 0, 0), 4)  # Draw a black line
 
-                    # Dalga hareketi algılandığında
-                    if wave_count >= 1:
-                        cv2.putText(image, 'Dalga Hareketi Algılandı!', (50, 100),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 5, cv2.LINE_AA)
-                        wave_count = 0  # Dalga sayacını sıfırla
-                        frame_counter = 0  # Frame sayacını sıfırla
+                previous_position = (x, y)
 
-                    # Eğer frame sayacı threshold'u geçerse, sayacı sıfırla
-                    if frame_counter > wave_threshold:
-                        direction = None
-                        wave_count = 0
-                        frame_counter = 0
+            # If thumb tip and index finger tip are close together, activate drawing mode
+            thumb_tip = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
+            thumb_coords = (int(thumb_tip.x * 1280), int(thumb_tip.y * 720))
+            index_coords = (int(index_finger_tip.x * 1280), int(index_finger_tip.y * 720))
 
-                previous_position = current_position
+            distance = np.linalg.norm(np.array(thumb_coords) - np.array(index_coords))
+            if distance < 30:  # If thumb and index finger are close, start drawing
+                drawing = True
+            else:
+                drawing = False
 
-        # Show the video feed
+        # Show the video feed and the canvas
         cv2.imshow('Hand Gesture', image)
+        cv2.imshow('Canvas', canvas)
 
         if cv2.waitKey(10) & 0xFF == ord('q'):
             break
