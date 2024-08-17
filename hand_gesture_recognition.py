@@ -6,9 +6,15 @@ import numpy as np
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
-# Function to calculate the speed of hand movement
-def calculate_speed(coords1, coords2):
-    return np.linalg.norm(np.array(coords2) - np.array(coords1))
+# Function to calculate the direction of hand movement
+def calculate_direction(coords1, coords2):
+    delta_x = coords2[0] - coords1[0]
+    if delta_x > 0.02:  # Move to the right (threshold lowered for sensitivity)
+        return "right"
+    elif delta_x < -0.02:  # Move to the left (threshold lowered for sensitivity)
+        return "left"
+    else:
+        return "none"
 
 # Capturing video from webcam
 cap = cv2.VideoCapture(0)
@@ -16,8 +22,10 @@ cap = cv2.VideoCapture(0)
 # Using Mediapipe Hands
 with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
     previous_position = None
-    movement_threshold = 0.1  # Threshold to consider the hand movement as waving
-    waving_count = 0
+    direction = None
+    wave_count = 0
+    frame_counter = 0
+    wave_threshold = 5  # Lowered the threshold for faster wave detection
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -42,21 +50,33 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
                 current_position = (wrist.x, wrist.y)
 
                 if previous_position:
-                    movement_speed = calculate_speed(previous_position, current_position)
+                    current_direction = calculate_direction(previous_position, current_position)
                     
-                    if movement_speed > movement_threshold:
-                        waving_count += 1
+                    if direction is None:
+                        direction = current_direction
+                    elif direction == "right" and current_direction == "left":
+                        wave_count += 1
+                        direction = None
+                        frame_counter = 0
+                    elif direction == "left" and current_direction == "right":
+                        wave_count += 1
+                        direction = None
+                        frame_counter = 0
                     else:
-                        waving_count = 0
+                        frame_counter += 1
 
-                    if waving_count >= 5:  # If hand waves continuously for a few frames
-                        cv2.putText(image, 'Bye Bye!', (50, 100),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 255), 5, cv2.LINE_AA)
-                        cv2.imshow('Hand Gesture', image)
-                        cv2.waitKey(2000)
-                        cap.release()
-                        cv2.destroyAllWindows()
-                        exit()
+                    # Dalga hareketi algılandığında
+                    if wave_count >= 1:
+                        cv2.putText(image, 'Dalga Hareketi Algılandı!', (50, 100),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 5, cv2.LINE_AA)
+                        wave_count = 0  # Dalga sayacını sıfırla
+                        frame_counter = 0  # Frame sayacını sıfırla
+
+                    # Eğer frame sayacı threshold'u geçerse, sayacı sıfırla
+                    if frame_counter > wave_threshold:
+                        direction = None
+                        wave_count = 0
+                        frame_counter = 0
 
                 previous_position = current_position
 
